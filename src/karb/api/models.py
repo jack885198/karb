@@ -131,8 +131,11 @@ class ArbitrageOpportunity:
 
     @property
     def expected_profit_usd(self) -> Decimal:
-        """Expected profit in USD for max trade size."""
-        return self.max_trade_size * self.profit_pct
+        """Gross payoff minus purchase cost for this number of paired shares.
+
+        Excludes fees and execution risk; not realized PnL or estimated EV.
+        """
+        return self.max_trade_size * (Decimal("1") - self.combined_cost)
 
 
 @dataclass

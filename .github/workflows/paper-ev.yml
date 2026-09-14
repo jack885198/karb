@@ -1,0 +1,54 @@
+name: Paper EV research
+on:
+  push:
+    branches: ["codex/polymarket-paper-ev"]
+  pull_request:
+    branches: ["master"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Regression tests (synthetic, no network)
+        run: python -m unittest discover -s tests -p test_paper_ev.py -v
+      - name: Public market paper observation (no orders or secrets)
+        id: observation
+        continue-on-error: true
+        run: python -m karb.paper_ev --seconds 60 --markets 10 --shares 20 --cash 1000
+      - name: Publish research summary
+        if: always()
+        env:
+          OBSERVATION_OUTCOME: ${{ steps.observation.outcome }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          p = Path("paper-results/summary.json")
+          text = p.read_text() if p.exists() else "No market report produced."
+          print(text)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("## Paper research\n")
+              f.write("Market step: " + os.environ["OBSERVATION_OUTCOME"] + "\n\n")
+              f.write("Synthetic test success is not positive market EV.\n\n")
+              f.write("\u0060\u0060\u0060json\n" + text + "\n\u0060\u0060\u0060\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: paper-research-results
+          path: paper-results/
+          if-no-files-found: warn
+          retention-days: 14
